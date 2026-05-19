@@ -9,14 +9,16 @@ import yt_dlp
 from typing import Callable
 
 import sys
+
 sys.dont_write_bytecode = True
 sys.path.append("./bot_func")
 
-from v_download import download_video_sync # type: ignore
+from v_download import download_video_sync
+from v_download import download_audio_sync
 
 load_dotenv()
 TOKEN = getenv("TOKEN")
-bot = Bot(token=TOKEN)  # type: ignore
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 router = Router()
 
@@ -28,36 +30,65 @@ async def cmd_start(message: Message):
     await message.answer("Hi")
 
 
-
-async def _video_download(message: Message, url: str, path: str, download_func: Callable):
-    await message.answer("Downloading...")
+async def _download_dispatcher(
+    message: Message,
+    url: str,
+    path: str,
+    download_func: Callable[[str, str], str],
+    file_type: str,
+):
+    status_msg = await message.answer("Downloading...")
 
     try:
-        os.makedirs(f"{path}", exist_ok=True)
-        filename = await asyncio.to_thread(download_func, url)
+        os.makedirs(path, exist_ok=True)
+
+        filename = await asyncio.to_thread(download_func, url, path)
 
         if not os.path.exists(filename):
-            print("Error, file not found")
+            print(f"File {filename} not found.")
 
-        video = FSInputFile(filename)
-        await message.answer_video(video)
+        await status_msg.delete()
+
+        input_file = FSInputFile(filename)
+
+        if file_type == "video":
+            await message.answer_video(input_file)
+        elif file_type == "audio":
+            await message.answer_audio(input_file)
+
         os.remove(filename)
 
     except Exception as err:
-        print(f"Downloading error {err}")
-        await message.answer("ERROR Try again")
+        print(f"Downloading error: {err}")
+        await message.answer("ERROR. Try again later.")
 
 
-@dp.message(Command("download_video"))
+@router.message(Command("download_video"))
 async def video_download(message: Message):
-    text = message.text.split()  # type: ignore
+    text = message.text.split()
+
+    if len(text) < 2:
+        await message.answer("Usage:\n/download_video URL")
+        return
+
+    url = text[1]
+    await _download_dispatcher(
+        message, url, "video_downloads", download_video_sync, "video"
+    )
+
+
+@dp.message(Command("download_audio"))
+async def audio_download(message: Message):
+    text = message.text.split()
 
     if len(text) < 2:
         await message.answer("Usage:\n" "/video URL")
         return
 
     url = text[1]
-    await _video_download(message, url, "video_downloads", download_video_sync)
+    await _download_dispatcher(
+        message, url, "audio_downloads", download_audio_sync, "audio"
+    )
 
 
 async def main():
