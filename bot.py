@@ -15,6 +15,7 @@ sys.path.append("./bot_func")
 
 from v_download import download_video_sync
 from v_download import download_audio_sync
+from v_download import download_video_with_subs
 
 load_dotenv()
 TOKEN = getenv("TOKEN")
@@ -82,12 +83,32 @@ async def audio_download(message: Message):
     text = message.text.split()
 
     if len(text) < 2:
-        await message.answer("Usage:\n" "/video URL")
+        await message.answer("Usage:\n" "/download_audio URL")
         return
 
     url = text[1]
     await _download_dispatcher(
         message, url, "audio_downloads", download_audio_sync, "audio"
+    )
+
+
+@dp.message(Command("add_subs"))
+async def add_video_subs(message: Message):
+    text = message.text.split()
+
+    if len(text) < 2:
+        await message.answer("Usage:\n/add_subs URL [language]")
+        return
+    
+    url = text[1]
+    
+    language = text[2] if len(text) > 2 else "en"
+    await _download_dispatcher(
+        message=message, 
+        url=url, 
+        path="video_with_subs", 
+        download_func=lambda u, p: download_video_with_subs(u, p, language),
+        file_type="video"
     )
 
 
